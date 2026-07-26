@@ -1,0 +1,51 @@
+# Development Dockerfile for Hessian.AI Plugin
+FROM node:24-alpine
+
+# Install development dependencies
+RUN apk add --no-cache \
+    curl \
+    jq \
+    bash \
+    git \
+    bc \
+    # Development tools
+    python3 \
+    py3-pip \
+    vim \
+    nano \
+    # Build tools
+    make \
+    g++ \
+    gcc \
+    musl-dev
+
+# Create non-root user
+RUN adduser -D -s /bin/bash -u 1000 -G node pluginuser
+WORKDIR /home/pluginuser/app
+
+# Copy all files (including dev dependencies)
+COPY . .
+
+# Install all dependencies (including devDependencies)
+RUN npm install
+
+# Ensure correct permissions
+RUN chmod +x src/*.sh sandbox/*.sh install*.sh 2>/dev/null || true
+
+# Set up pi config directory
+RUN mkdir -p /home/pluginuser/.config/pi/plugins/hessian
+RUN cp -r src/* /home/pluginuser/.config/pi/plugins/hessian/ 2>/dev/null || true
+RUN cp -r schema /home/pluginuser/.config/pi/plugins/hessian/ 2>/dev/null || true
+RUN chown -R pluginuser:pluginuser /home/pluginuser/.config
+
+# Switch to non-root user
+USER pluginuser
+WORKDIR /home/pluginuser/app
+
+# Environment variables
+ENV NODE_ENV=development
+ENV HESSIAN_API_KEY=""
+ENV HESSIAN_PROFILE="development"
+
+# Default command
+CMD ["tail", "-f", "/dev/null"]

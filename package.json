@@ -1,0 +1,64 @@
+{
+  "name": "pi-hessian-plugin",
+  "version": "0.1.0",
+  "description": "Hessian.AI plugin for pi coding agent — model config generator, profiles, caching, and skills",
+  "type": "module",
+  "main": "./src/hessian.ts",
+  "bin": {
+    "generate-hessian-config": "./src/generate-hessian-config.sh",
+    "copy-hessian-config": "./src/copy-hessian-config.sh",
+    "validate-hessian-config": "./src/validate-config.sh",
+    "setup-hessian-wizard": "./src/setup-wizard.sh"
+  },
+  "files": [
+    "src/",
+    "schema/",
+    ".opencode/",
+    "install.sh",
+    "install.ps1",
+    "LICENSE",
+    "README.md",
+    "FAQ.md"
+  ],
+  "scripts": {
+    "prepare-release": "bash prepare-release.sh",
+    "validate": "bash src/validate-config.sh pi-hessian.json",
+    "generate": "bash src/generate-hessian-config.sh",
+    "tsc": "tsc --noEmit --skipLibCheck",
+    "sandbox": "bash sandbox/run.sh",
+    "sandbox:dev": "bash sandbox/dev.sh",
+    "sandbox:test": "bash sandbox/test.sh",
+    "sandbox-showcase": "bash sandbox/showcase.sh",
+    "docker": "docker build -t ghcr.io/tobias-weiss-ai-xr/pi-hessian-plugin:latest .",
+    "docker-push": "docker push ghcr.io/tobias-weiss-ai-xr/pi-hessian-plugin:latest",
+    "docker-run": "docker run -it --rm -e HESSIAN_API_KEY=$HESSIAN_API_KEY ghcr.io/tobias-weiss-ai-xr/pi-hessian-plugin:latest sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tobias-weiss-ai-xr/pi-hessian-plugin.git"
+  },
+  "keywords": [
+    "pi",
+    "coding-agent",
+    "hessian-ai",
+    "hessian",
+    "ai",
+    "plugin",
+    "models",
+    "chat-ai",
+    "germany",
+    "hesse"
+  ],
+  "license": "MIT",
+  "author": "Tobias Weiss",
+  "bugs": {
+    "url": "https://github.com/tobias-weiss-ai-xr/pi-hessian-plugin/issues"
+  },
+  "homepage": "https://github.com/tobias-weiss-ai-xr/pi-hessian-plugin#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43"
+  }
+}
