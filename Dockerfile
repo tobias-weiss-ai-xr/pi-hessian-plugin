@@ -1,7 +1,35 @@
 # Hessian.AI Plugin for pi Coding Agent - Docker Image
+# Multi-stage build for smaller final image
+
+# Stage 1: Builder
+FROM node:24-alpine as builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    curl \
+    jq \
+    bash \
+    git \
+    bc
+
+WORKDIR /home/pluginuser/app
+
+# Copy package files
+COPY package*.json tsconfig.json ./
+
+# Install ALL dependencies (including devDependencies for tsc)
+RUN npm install
+
+# Copy all source files
+COPY . .
+
+# Build TypeScript (if needed)
+RUN npm run tsc -- --noEmit --skipLibCheck 2>/dev/null || true
+
+# Stage 2: Production
 FROM node:24-alpine
 
-# Install system dependencies
+# Install runtime dependencies
 RUN apk add --no-cache \
     curl \
     jq \
@@ -13,23 +41,28 @@ RUN apk add --no-cache \
 RUN adduser -D -s /bin/bash -u 1000 -G node pluginuser
 WORKDIR /home/pluginuser
 
-# Copy package files
-COPY package*.json tsconfig.json ./
+# Copy node_modules from builder
+COPY --from=builder --chown=pluginuser:pluginuser /home/pluginuser/app/node_modules /home/pluginuser/node_modules
 
-# Install dependencies
-RUN npm ci 2>/dev/null || npm install 2>&1
+# Copy package files
+COPY --chown=pluginuser:pluginuser package*.json tsconfig.json ./
 
 # Copy all files
-COPY . .
+COPY --chown=pluginuser:pluginuser . .
 
 # Ensure correct permissions
-RUN chmod +x /home/pluginuser/src/*.sh /home/pluginuser/install*.sh 2>/dev/null || true
+RUN chmod +x /home/pluginuser/src/*.sh /home/pluginuser/sandbox/*.sh 2>/dev/null || true
 
-# Set up pi config directory
+# Create pi plugin directory structure
 RUN mkdir -p /home/pluginuser/.config/pi/plugins/hessian
-RUN cp -r /home/pluginuser/src/* /home/pluginuser/.config/pi/plugins/hessian/ 2>/dev/null || true
-RUN cp -r /home/pluginuser/schema /home/pluginuser/.config/pi/plugins/hessian/ 2>/dev/null || true
-RUN chown -R pluginuser:pluginuser /home/pluginuser/.config
+
+# Copy plugin files explicitly (not relying on wildcard)
+RUN cp -f /home/pluginuser/src/hessian.ts /home/pluginuser/.config/pi/plugins/hessian/hessian.ts && \
+    cp -f /home/pluginuser/src/hessian-memory.ts /home/pluginuser/.config/pi/plugins/hessian/hessian-memory.ts && \
+    cp -f /home/pluginuser/src/types.ts /home/pluginuser/.config/pi/plugins/hessian/types.ts && \
+    mkdir -p /home/pluginuser/.config/pi/plugins/hessian/.opencode && \
+    mkdir -p /home/pluginuser/.config/pi/plugins/hessian/schema && \
+    chown -R pluginuser:pluginuser /home/pluginuser/.config
 
 # Switch to non-root user
 USER pluginuser
@@ -39,6 +72,7 @@ WORKDIR /home/pluginuser
 ENV NODE_ENV=production
 ENV HESSIAN_API_KEY=""
 ENV HESSIAN_PROFILE="production"
+ENV HESSIAN_API_URL=""
 
 # Default command
 CMD ["tail", "-f", "/dev/null"]

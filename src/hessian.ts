@@ -6,7 +6,9 @@ import type { HessianModel, HessianPluginConfig, ApiResponse } from "./types.js"
 import * as memory from "./hessian-memory.js";
 
 // Constants
-const DEFAULT_ENDPOINT = "https://api.hessian.ai/v1";
+// Default endpoint for Hessian.AI API
+// Can be overridden via HESSIAN_API_URL environment variable
+const DEFAULT_ENDPOINT = process.env.HESSIAN_API_URL || "https://api.hessian.ai/v1";
 const PLUGIN_DIR = path.join(os.homedir(), ".config", "pi", "plugins", "hessian");
 const PLUGIN_CONFIG_PATH = path.join(PLUGIN_DIR, "pi-hessian.json");
 

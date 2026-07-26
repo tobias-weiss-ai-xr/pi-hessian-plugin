@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hessian.AI Plugin Schema",
+  "description": "Schema definitions for Hessian.AI plugin configuration",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

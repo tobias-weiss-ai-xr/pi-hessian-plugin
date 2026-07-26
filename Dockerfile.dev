@@ -34,9 +34,12 @@ RUN chmod +x src/*.sh sandbox/*.sh install*.sh 2>/dev/null || true
 
 # Set up pi config directory
 RUN mkdir -p /home/pluginuser/.config/pi/plugins/hessian
-RUN cp -r src/* /home/pluginuser/.config/pi/plugins/hessian/ 2>/dev/null || true
-RUN cp -r schema /home/pluginuser/.config/pi/plugins/hessian/ 2>/dev/null || true
-RUN chown -R pluginuser:pluginuser /home/pluginuser/.config
+RUN cp -f /home/pluginuser/app/src/hessian.ts /home/pluginuser/.config/pi/plugins/hessian/hessian.ts && \
+    cp -f /home/pluginuser/app/src/hessian-memory.ts /home/pluginuser/.config/pi/plugins/hessian/hessian-memory.ts && \
+    cp -f /home/pluginuser/app/src/types.ts /home/pluginuser/.config/pi/plugins/hessian/types.ts && \
+    mkdir -p /home/pluginuser/.config/pi/plugins/hessian/.opencode && \
+    mkdir -p /home/pluginuser/.config/pi/plugins/hessian/schema && \
+    chown -R pluginuser:pluginuser /home/pluginuser/.config
 
 # Switch to non-root user
 USER pluginuser
