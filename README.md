@@ -1,4 +1,6 @@
 # pi-hessian-plugin
+> **⚠️ Migrated from Codeberg → GitHub**: This repository has moved permanently to [GitHub](https://github.com/tobias-weiss-ai-xr/pi-hessian-plugin). The Codeberg mirror is deprecated.
+
 
 > Hessian (TUD / TU Darmstadt LLM Service) provider for the [pi coding agent](https://pi.dev)
 
