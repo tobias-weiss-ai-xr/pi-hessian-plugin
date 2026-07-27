@@ -19,8 +19,8 @@ RUN apk add --no-cache \
     gcc \
     musl-dev
 
-# Create non-root user
-RUN adduser -D -s /bin/bash -u 1000 -G node pluginuser
+# Create non-root user (use a UID that doesn't conflict with the node user)
+RUN adduser -D -s /bin/bash -u 1001 -G node pluginuser || adduser -D -s /bin/bash -G node pluginuser
 WORKDIR /home/pluginuser/app
 
 # Copy all files (including dev dependencies)
@@ -29,17 +29,17 @@ COPY . .
 # Install all dependencies (including devDependencies)
 RUN npm install
 
-# Ensure correct permissions
-RUN chmod +x src/*.sh sandbox/*.sh install*.sh 2>/dev/null || true
+# Ensure correct permissions (files are in WORKDIR /home/pluginuser/app)
+RUN chmod +x /home/pluginuser/app/src/*.sh /home/pluginuser/app/sandbox/*.sh 2>/dev/null || true
 
 # Set up pi config directory
 RUN mkdir -p /home/pluginuser/.config/pi/plugins/hessian
-RUN cp -f /home/pluginuser/app/src/hessian.ts /home/pluginuser/.config/pi/plugins/hessian/hessian.ts && \
-    cp -f /home/pluginuser/app/src/hessian-memory.ts /home/pluginuser/.config/pi/plugins/hessian/hessian-memory.ts && \
-    cp -f /home/pluginuser/app/src/types.ts /home/pluginuser/.config/pi/plugins/hessian/types.ts && \
+RUN mkdir -p /home/pluginuser/.config/pi/plugins/hessian/schema && \
     mkdir -p /home/pluginuser/.config/pi/plugins/hessian/.opencode && \
-    mkdir -p /home/pluginuser/.config/pi/plugins/hessian/schema && \
-    chown -R pluginuser:pluginuser /home/pluginuser/.config
+    cp -rf /home/pluginuser/app/src/. /home/pluginuser/.config/pi/plugins/hessian/ && \
+    cp -f /home/pluginuser/app/schema/placeholder.json /home/pluginuser/.config/pi/plugins/hessian/schema/placeholder.json && \
+    cp -rf /home/pluginuser/app/skills /home/pluginuser/.config/pi/plugins/hessian/ && \
+    chown -R node:node /home/pluginuser/.config
 
 # Switch to non-root user
 USER pluginuser
@@ -47,7 +47,6 @@ WORKDIR /home/pluginuser/app
 
 # Environment variables
 ENV NODE_ENV=development
-ENV HESSIAN_API_KEY=""
 ENV HESSIAN_PROFILE="development"
 
 # Default command

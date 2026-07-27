@@ -1,7 +1,7 @@
 // src/types.ts
 
 export interface HessianModel {
-  id: string;
+  id?: string;
   name: string;
   category: string;
   limit: {

@@ -2,7 +2,7 @@
 # Multi-stage build for smaller final image
 
 # Stage 1: Builder
-FROM node:24-alpine as builder
+FROM node:24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -24,7 +24,7 @@ RUN npm install
 COPY . .
 
 # Build TypeScript (if needed)
-RUN npm run tsc -- --noEmit --skipLibCheck 2>/dev/null || true
+RUN npm run lint 2>/dev/null || true
 
 # Stage 2: Production
 FROM node:24-alpine
@@ -37,18 +37,18 @@ RUN apk add --no-cache \
     git \
     bc
 
-# Create non-root user
-RUN adduser -D -s /bin/bash -u 1000 -G node pluginuser
+# Create non-root user (use a UID that doesn't conflict with the node user)
+RUN adduser -D -s /bin/bash -u 1001 -G node pluginuser || adduser -D -s /bin/bash -G node pluginuser
 WORKDIR /home/pluginuser
 
 # Copy node_modules from builder
-COPY --from=builder --chown=pluginuser:pluginuser /home/pluginuser/app/node_modules /home/pluginuser/node_modules
+COPY --from=builder --chown=node:node /home/pluginuser/app/node_modules /home/pluginuser/node_modules
 
 # Copy package files
-COPY --chown=pluginuser:pluginuser package*.json tsconfig.json ./
+COPY --chown=node:node package*.json tsconfig.json ./
 
 # Copy all files
-COPY --chown=pluginuser:pluginuser . .
+COPY --chown=node:node . .
 
 # Ensure correct permissions
 RUN chmod +x /home/pluginuser/src/*.sh /home/pluginuser/sandbox/*.sh 2>/dev/null || true
@@ -57,12 +57,12 @@ RUN chmod +x /home/pluginuser/src/*.sh /home/pluginuser/sandbox/*.sh 2>/dev/null
 RUN mkdir -p /home/pluginuser/.config/pi/plugins/hessian
 
 # Copy plugin files explicitly (not relying on wildcard)
-RUN cp -f /home/pluginuser/src/hessian.ts /home/pluginuser/.config/pi/plugins/hessian/hessian.ts && \
-    cp -f /home/pluginuser/src/hessian-memory.ts /home/pluginuser/.config/pi/plugins/hessian/hessian-memory.ts && \
-    cp -f /home/pluginuser/src/types.ts /home/pluginuser/.config/pi/plugins/hessian/types.ts && \
+RUN mkdir -p /home/pluginuser/.config/pi/plugins/hessian/schema && \
     mkdir -p /home/pluginuser/.config/pi/plugins/hessian/.opencode && \
-    mkdir -p /home/pluginuser/.config/pi/plugins/hessian/schema && \
-    chown -R pluginuser:pluginuser /home/pluginuser/.config
+    cp -rf /home/pluginuser/src/. /home/pluginuser/.config/pi/plugins/hessian/ && \
+    cp -f /home/pluginuser/schema/placeholder.json /home/pluginuser/.config/pi/plugins/hessian/schema/placeholder.json && \
+    cp -rf /home/pluginuser/skills /home/pluginuser/.config/pi/plugins/hessian/ && \
+    chown -R node:node /home/pluginuser/.config
 
 # Switch to non-root user
 USER pluginuser
@@ -70,7 +70,6 @@ WORKDIR /home/pluginuser
 
 # Environment variables
 ENV NODE_ENV=production
-ENV HESSIAN_API_KEY=""
 ENV HESSIAN_PROFILE="production"
 ENV HESSIAN_API_URL=""
 

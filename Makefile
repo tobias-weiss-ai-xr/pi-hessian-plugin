@@ -90,14 +90,14 @@ install: ## Install dependencies
 install-dev: ## Install all dependencies including devDependencies
 	npm install
 
-lint: ## Run linter (if configured)
-	@echo "No linter configured. Consider adding ESLint."
+lint: ## Run TypeScript check
+	npm run lint
 
 lint-fix: ## Fix linting issues (if configured)
 	@echo "No linter configured."
 
 tsc: ## Run TypeScript check
-	npm run tsc
+	npm run lint
 
 validate: ## Validate configuration
 	bash src/validate-config.sh pi-hessian.json 2>/dev/null || echo "No config file to validate"
@@ -116,7 +116,7 @@ test: ## Run all tests
 	exec bash sandbox/test.sh
 
 test-tsc: ## Run TypeScript tests
-	npm run tsc
+	npm run lint
 
 test-config: ## Test configuration generation
 	bash src/generate-hessian-config.sh --help

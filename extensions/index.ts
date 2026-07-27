@@ -8,14 +8,15 @@
  * Reload:  /reload
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 
-const TUD_MODELS = [
+const TUD_MODELS: ProviderModelConfig[] = [
   {
     id: "gpt-oss-120b",
     name: "GPT-OSS 120B (TUD)",
     reasoning: true,
-    input: ["text"] as const,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 131_072,
     maxTokens: 32_768,
   },
@@ -23,7 +24,8 @@ const TUD_MODELS = [
     id: "gemma-4-31B-it",
     name: "Gemma 4 31B IT (TUD)",
     reasoning: true,
-    input: ["text", "image"] as const,
+    input: ["text", "image"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 262_144,
     maxTokens: 32_768,
   },
@@ -31,7 +33,8 @@ const TUD_MODELS = [
     id: "GLM-5.2-AWQ-INT4",
     name: "GLM 5.2 AWQ INT4 (TUD)",
     reasoning: true,
-    input: ["text"] as const,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 131_072,
     maxTokens: 32_768,
   },
@@ -39,7 +42,8 @@ const TUD_MODELS = [
     id: "Mistral-Medium-3.5-128B",
     name: "Mistral Medium 3.5 128B (TUD)",
     reasoning: true,
-    input: ["text"] as const,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 131_072,
     maxTokens: 32_768,
   },
@@ -47,7 +51,8 @@ const TUD_MODELS = [
     id: "Qwen3.6-35B-A3B",
     name: "Qwen 3.6 35B A3B (TUD)",
     reasoning: true,
-    input: ["text"] as const,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 131_072,
     maxTokens: 32_768,
   },
@@ -55,7 +60,8 @@ const TUD_MODELS = [
     id: "Ministral-3-14B-Instruct-2512",
     name: "Ministral 3 14B (TUD)",
     reasoning: true,
-    input: ["text"] as const,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 131_072,
     maxTokens: 32_768,
   },
@@ -63,7 +69,8 @@ const TUD_MODELS = [
     id: "qwen3-vl-30b-a3b-instruct-awq",
     name: "Qwen 3 VL 30B (TUD)",
     reasoning: true,
-    input: ["text", "image"] as const,
+    input: ["text", "image"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 131_072,
     maxTokens: 32_768,
   },
