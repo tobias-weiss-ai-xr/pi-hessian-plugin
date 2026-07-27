@@ -113,22 +113,22 @@ function registerCommands(pi: unknown): void {
     return;
   }
 
-  const commandContext = pi as { registerCommand: (cmd: { name: string; description: string; handler: () => Promise<string> }) => void };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ctx = pi as any;
 
-  commandContext.registerCommand({
-    name: "refresh-hessian-models",
+  ctx.registerCommand("refresh-hessian-models", {
     description: "Refresh the list of available Hessian.AI models",
-    async handler() {
+    handler: async () => {
       await refreshHessianConfig(true);
-      return "Hessian.AI models refreshed successfully";
+      console.log("Hessian.AI models refreshed successfully");
     },
   });
 
-  commandContext.registerCommand({
-    name: "list-hessian-models",
+  ctx.registerCommand("list-hessian-models", {
     description: "List all available Hessian.AI models",
-    async handler() {
-      return await listModels();
+    handler: async () => {
+      const list = await listModels();
+      console.log(list);
     },
   });
 }

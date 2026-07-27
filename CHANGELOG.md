@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **tsconfig.json**: `moduleResolution: "node"` removed in TS 7 — changed to `"bundler"`
+- **TypeScript**: `extensions/index.ts` now included in type-checking; added missing `cost` field and `ProviderModelConfig` annotation to models
+- **Dockerfile/Dockerfile.dev**: Fixed UID 1000 conflict with `node` user; removed `ENV HESSIAN_API_KEY` (security); fixed `as`→`AS` casing; fixed schema/skills copying to plugin directory
+- **schema/placeholder.json**: Replaced empty stub with full JSON Schema for config validation
+- **Makefile**: Fixed `tsc` target calling non-existent script; fixed `.DPHONY`→`.PHONY` typo
+- **src/generate-hessian-config.sh**: Moved helper functions before their first use to prevent `command not found` at runtime
+- **CI workflow**: Tests now build and use local image instead of pulling from GHCR
+- **src/hessian.ts**: Fixed `registerCommand` call signature to match pi's `ExtensionAPI`
+
 ### Added
 - Initial repository structure
 - TypeScript plugin for pi coding agent
