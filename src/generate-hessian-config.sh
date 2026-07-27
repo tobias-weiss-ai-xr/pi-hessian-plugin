@@ -24,6 +24,88 @@ log_warning() {
   echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+# ============= HELPER FUNCTIONS =============
+get_default_model() {
+  case "$1" in
+    production) echo "tud/mistral-medium-3.5-128b" ;;
+    budget)     echo "tud/ministral-3-14b-instruct" ;;
+    *)          echo "tud/qwen3.6-35b-a3b" ;;
+  esac
+}
+
+get_model_description() {
+  local id="$1"
+  case "$id" in
+    tud/glm-5.2-awq)               echo "GLM 5.2 AWQ INT4" ;;
+    tud/gpt-oss-120b)              echo "GPT-OSS 120B" ;;
+    tud/gemma-4-31b-it)            echo "Gemma 4 31B" ;;
+    tud/mistral-medium-3.5-128b)   echo "Mistral Medium 3.5 128B" ;;
+    tud/qwen3.6-35b-a3b)           echo "Qwen 3.6 35B-A3B" ;;
+    tud/ministral-3-14b-instruct)  echo "Ministral 3 14B" ;;
+    tud/qwen3-vl-30b-a3b)          echo "Qwen 3-VL 30B-A3B" ;;
+    mistral-7b)                    echo "Mistral 7B" ;;
+    mixtral-8x7b)                  echo "Mixtral 8x7B" ;;
+    mistral-80b)                   echo "Mistral 80B" ;;
+    llama-3-8b)                    echo "Llama 3 8B Instruct" ;;
+    llama-3-70b)                   echo "Llama 3 70B Instruct" ;;
+    *)                             echo "$id" ;;
+  esac
+}
+
+categorize_model() {
+  local id="$1"
+  if [[ "$id" == tud/* ]]; then
+    if [[ "$id" == *vl* || "$id" == *vision* ]]; then
+      echo "tud-vision"
+    else
+      echo "tud"
+    fi
+  elif [[ "$id" == *mistral* || "$id" == *mixtral* ]]; then
+    echo "mistral"
+  elif [[ "$id" == *llama* ]]; then
+    echo "meta"
+  elif [[ "$id" == *qwen* ]]; then
+    echo "qwen"
+  elif [[ "$id" == *gemma* ]]; then
+    echo "google"
+  else
+    echo "general"
+  fi
+}
+
+get_context_window() {
+  local id="$1"
+  if [[ "$id" == *128b* || "$id" == *120b* ]]; then echo 131072
+  elif [[ "$id" == *70b* || "$id" == *80b* ]]; then echo 32768
+  elif [[ "$id" == *35b* || "$id" == *30b* ]]; then echo 16384
+  elif [[ "$id" == *14b* ]]; then echo 8192
+  else echo 4096
+  fi
+}
+
+get_output_window() {
+  local id="$1"
+  if [[ "$id" == *128b* || "$id" == *120b* ]]; then echo 32768
+  elif [[ "$id" == *70b* || "$id" == *80b* ]]; then echo 8192
+  else echo 2048
+  fi
+}
+
+get_latency() {
+  local id="$1"
+  if [[ "$id" == *7b* ]]; then echo "fast"
+  elif [[ "$id" == *14b* ]]; then echo "moderate"
+  elif [[ "$id" == *70b* || "$id" == *80b* || "$id" == *128b* ]]; then echo "slow"
+  else echo "moderate"
+  fi
+}
+
+can_reason() {
+  local id="$1"
+  [[ "$id" == *80b* || "$id" == *70b* || "$id" == *mixtral* || "$id" == *llama-3-70b* || "$id" == *llama-3-8b* ]]
+}
+
+# ============= MAIN EXECUTION =============
 # Check for API key
 HESSIAN_API_KEY="${HESSIAN_API_KEY:-}"
 
@@ -166,83 +248,4 @@ jq '.provider.hessian.models += {
 mv "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
 log_info "Configuration generated successfully: $OUTPUT_FILE"
 
-# Helper functions
-get_default_model() {
-  case "$1" in
-    production) echo "tud/mistral-medium-3.5-128b" ;;
-    budget)     echo "tud/ministral-3-14b-instruct" ;;
-    *)          echo "tud/qwen3.6-35b-a3b" ;;
-  esac
-}
 
-get_model_description() {
-  local id="$1"
-  case "$id" in
-    tud/glm-5.2-awq)               echo "GLM 5.2 AWQ INT4" ;;
-    tud/gpt-oss-120b)              echo "GPT-OSS 120B" ;;
-    tud/gemma-4-31b-it)            echo "Gemma 4 31B" ;;
-    tud/mistral-medium-3.5-128b)   echo "Mistral Medium 3.5 128B" ;;
-    tud/qwen3.6-35b-a3b)           echo "Qwen 3.6 35B-A3B" ;;
-    tud/ministral-3-14b-instruct)  echo "Ministral 3 14B" ;;
-    tud/qwen3-vl-30b-a3b)          echo "Qwen 3-VL 30B-A3B" ;;
-    mistral-7b)                    echo "Mistral 7B" ;;
-    mixtral-8x7b)                  echo "Mixtral 8x7B" ;;
-    mistral-80b)                   echo "Mistral 80B" ;;
-    llama-3-8b)                    echo "Llama 3 8B Instruct" ;;
-    llama-3-70b)                   echo "Llama 3 70B Instruct" ;;
-    *)                             echo "$id" ;;
-  esac
-}
-
-categorize_model() {
-  local id="$1"
-  if [[ "$id" == tud/* ]]; then
-    if [[ "$id" == *vl* || "$id" == *vision* ]]; then
-      echo "tud-vision"
-    else
-      echo "tud"
-    fi
-  elif [[ "$id" == *mistral* || "$id" == *mixtral* ]]; then
-    echo "mistral"
-  elif [[ "$id" == *llama* ]]; then
-    echo "meta"
-  elif [[ "$id" == *qwen* ]]; then
-    echo "qwen"
-  elif [[ "$id" == *gemma* ]]; then
-    echo "google"
-  else
-    echo "general"
-  fi
-}
-
-get_context_window() {
-  local id="$1"
-  if [[ "$id" == *128b* || "$id" == *120b* ]]; then echo 131072
-  elif [[ "$id" == *70b* || "$id" == *80b* ]]; then echo 32768
-  elif [[ "$id" == *35b* || "$id" == *30b* ]]; then echo 16384
-  elif [[ "$id" == *14b* ]]; then echo 8192
-  else echo 4096
-  fi
-}
-
-get_output_window() {
-  local id="$1"
-  if [[ "$id" == *128b* || "$id" == *120b* ]]; then echo 32768
-  elif [[ "$id" == *70b* || "$id" == *80b* ]]; then echo 8192
-  else echo 2048
-  fi
-}
-
-get_latency() {
-  local id="$1"
-  if [[ "$id" == *7b* ]]; then echo "fast"
-  elif [[ "$id" == *14b* ]]; then echo "moderate"
-  elif [[ "$id" == *70b* || "$id" == *80b* || "$id" == *128b* ]]; then echo "slow"
-  else echo "moderate"
-  fi
-}
-
-can_reason() {
-  local id="$1"
-  [[ "$id" == *80b* || "$id" == *70b* || "$id" == *mixtral* || "$id" == *llama-3-70b* || "$id" == *llama-3-8b* ]]
-}

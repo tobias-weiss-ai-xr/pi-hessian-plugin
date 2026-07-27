@@ -179,5 +179,5 @@ build-compose: ## Build services with docker compose
 	$(DOCKER_COMPOSE) build
 
 # Default target
-.DPHONY: default
+.PHONY: default
 default: help
