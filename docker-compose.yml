@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  hessian-plugin:
+    image: ghcr.io/tobias-weiss-ai-xr/pi-hessian-plugin:latest
+    environment:
+      - HESSIAN_API_KEY=${HESSIAN_API_KEY}
+      - HESSIAN_PROFILE=${HESSIAN_PROFILE:-production}
+    volumes:
+      - ./pi-config:/home/pluginuser/.config/pi
+    stdin_open: true
+    tty: true
+
+  hessian-plugin-dev:
+    image: ghcr.io/tobias-weiss-ai-xr/pi-hessian-plugin:latest-dev
+    environment:
+      - HESSIAN_API_KEY=${HESSIAN_API_KEY}
+      - HESSIAN_PROFILE=${HESSIAN_PROFILE:-development}
+    volumes:
+      - .:/home/pluginuser/app
+      - ./pi-config:/home/pluginuser/.config/pi
+    stdin_open: true
+    tty: true

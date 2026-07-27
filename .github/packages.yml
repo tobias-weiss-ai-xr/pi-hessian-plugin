@@ -1,0 +1,45 @@
+name: pi-hessian-plugin
+
+packages:
+  docker:
+    name: ghcr.io/tobias-weiss-ai-xr/pi-hessian-plugin
+    description: Hessian.AI (TUD/TU Darmstadt) plugin for pi coding agent
+
+    variants:
+      - name: latest
+        description: Production-ready image
+        dockerfile: Dockerfile
+        target: ""
+        platforms: linux/amd64,linux/arm64
+
+      - name: latest-dev
+        description: Development image
+        dockerfile: Dockerfile.dev
+        target: ""
+        platforms: linux/amd64,linux/arm64
+
+    tags:
+      - type: branch
+        pattern: main
+        format: latest
+      - type: tag
+        pattern: v(*)
+        format: ${{1}}
+      - type: sha
+        format: sha-{{sha}}
+
+    labels:
+      - org.opencontainers.image.title=Hessian.AI Plugin for pi
+      - org.opencontainers.image.description=Hessian.AI (TUD) plugin for pi — provider registration, models, and skills
+      - org.opencontainers.image.url=https://github.com/tobias-weiss-ai-xr/pi-hessian-plugin
+      - org.opencontainers.image.source=https://github.com/tobias-weiss-ai-xr/pi-hessian-plugin
+      - org.opencontainers.image.licenses=MIT
+
+publishing:
+  on:
+    push:
+      branches: [main]
+      tags: [v*]
+    pull_request:
+      branches: [main]
+  platforms: linux/amd64,linux/arm64

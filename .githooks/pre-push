@@ -1,0 +1,11 @@
+#!/bin/bash
+# Pre-push hook — runs TypeScript check before pushing
+set -euo pipefail
+
+echo "→ Running TypeScript check..."
+cd "$(dirname "$0")/.."
+npx tsc --noEmit --skipLibCheck 2>&1 || {
+    echo "✗ TypeScript check failed. Fix errors before pushing."
+    exit 1
+}
+echo "✓ TypeScript check passed."

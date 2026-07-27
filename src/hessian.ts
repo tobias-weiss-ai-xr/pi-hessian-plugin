@@ -131,6 +131,28 @@ function registerCommands(pi: unknown): void {
       console.log(list);
     },
   });
+
+  ctx.registerCommand("hessian-set-profile", {
+    description: "Switch Hessian.AI profile (production, development, budget)",
+    handler: async (args: string) => {
+      const profile = args.trim();
+      if (!["production", "development", "budget"].includes(profile)) {
+        console.log(`Invalid profile: ${profile}. Valid: production, development, budget`);
+        return;
+      }
+      process.env.HESSIAN_PROFILE = profile;
+      await refreshHessianConfig(true);
+      console.log(`Switched to ${profile} profile and refreshed models`);
+    },
+  });
+
+  ctx.registerCommand("hessian-usage", {
+    description: "Show Hessian.AI usage statistics",
+    handler: async () => {
+      const stats = await memory.getUsageStats();
+      console.log(JSON.stringify(stats, null, 2));
+    },
+  });
 }
 
 /**

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://pi.code/config.json",
+  "plugin": ["hessian"],
+  "model": "tud/mistral-medium-3.5-128b",
+  "permission": {
+    "bash": "allow",
+    "edit": "allow",
+    "read": "allow",
+    "grep": "allow",
+    "glob": "allow",
+    "lsp": "allow",
+    "skill": "allow",
+    "task": "allow",
+    "webfetch": "allow",
+    "websearch": "allow",
+    "question": "allow",
+    "external_directory": "ask",
+    "doom_loop": "ask"
+  },
+  "formatter": {},
+  "provider": {
+    "tud": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Hessian TUD LLM Service",
+      "options": {
+        "baseURL": "https://llm-service.ai.tu-darmstadt.de/v1",
+        "apiKey": "{env:TUD_API_KEY}"
+      },
+      "models": {
+        "gpt-oss-120b": {
+          "name": "GPT-OSS 120B (TUD)",
+          "options": { "enable-tools": true, "enable-auto-tool-choice": true, "tool-call-parser": "openai" },
+          "limit": { "context": 131072, "output": 32768 }
+        }
+      }
+    }
+  }
+}
