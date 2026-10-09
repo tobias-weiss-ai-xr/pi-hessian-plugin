@@ -2,7 +2,14 @@
   "name": "pi-hessian-plugin",
   "version": "1.0.0",
   "description": "Pi package for Hessian (TUD/TU Darmstadt) LLM provider — GPT-OSS, Gemma 4, GLM, Mistral, Qwen, Ministral. Auto-registers provider, models, and usage skill.",
-  "keywords": ["pi-package", "hessian", "tud", "tu-darmstadt", "llm", "provider"],
+  "keywords": [
+    "pi-package",
+    "hessian",
+    "tud",
+    "tu-darmstadt",
+    "llm",
+    "provider"
+  ],
   "type": "module",
   "main": "extensions/index.ts",
   "scripts": {
@@ -10,8 +17,12 @@
     "tsc": "tsc --noEmit"
   },
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"]
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ]
   },
   "repository": {
     "type": "git",
@@ -25,6 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }

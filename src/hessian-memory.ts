@@ -1,6 +1,5 @@
-// src/hessian-memory.ts
 // Memory layer utilities for Hessian.AI plugin
-// Provides caching, usage tracking, metrics, and preferences
+// Provides caching, usage tracking, metrics, and preferences for pi
 
 import path from "node:path";
 import os from "node:os";
@@ -14,109 +13,163 @@ const PREFERENCES_FILE = path.join(os.homedir(), ".config", "pi", "hessian-prefe
 const PROJECT_CONTEXT_FILE = path.join(process.cwd(), ".pi", "hessian", "context.json");
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const L0_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-/**
- * Ensure cache directory exists
- */
-async function ensureCacheDir(): Promise<void> {
+// L0: In-memory cache for fast repeated access to same data
+const l0Cache = new Map<string, { data: unknown; timestamp: number }>();
+
+/** Check if L0 caching is enabled. Disable with HESSIAN_CACHE_L0=false */
+function l0Enabled(): boolean {
+  return process.env.HESSIAN_CACHE_L0 !== "false";
+}
+
+/** Check if L1 caching is enabled. Disable with HESSIAN_CACHE_L1=false */
+function l1Enabled(): boolean {
+  return process.env.HESSIAN_CACHE_L1 !== "false";
+}
+
+/** Ensure cache directory exists */
+export async function ensureCacheDir(cacheDir = CACHE_DIR): Promise<void> {
   try {
     const fs = await import("node:fs/promises");
-    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await fs.mkdir(cacheDir, { recursive: true });
   } catch (err) {
     console.error(`[Hessian Memory] Failed to create cache directory: ${err}`);
   }
 }
 
+export interface FetchWithCacheOptions {
+  forceRefresh?: boolean;
+  cacheFile?: string;
+  cacheTtlMs?: number;
+  isValid?: (value: unknown) => boolean;
+  onInvalidCache?: (message: string) => void;
+}
+
 /**
- * Fetch with caching
+ * Fetch with optional L0 (in-memory) + L1 (disk) caching.
+ * Priority: L0 -> L1 -> Fetch fresh
+ * 
+ * Environment variables:
+ * - HESSIAN_CACHE_L0=false: Disable L0 (in-memory) caching
+ * - HESSIAN_CACHE_L1=false: Disable L1 (disk) caching
  */
 export async function fetchWithCache<T>(
   fetcher: () => Promise<T>,
-  forceRefresh = false
+  options: boolean | FetchWithCacheOptions = false,
 ): Promise<{ data: T; cached: boolean }> {
-  await ensureCacheDir();
+  const {
+    forceRefresh = false,
+    cacheFile = CACHE_FILE,
+    cacheTtlMs = CACHE_TTL_MS,
+    isValid = () => true,
+    onInvalidCache = console.warn,
+  } = typeof options === "boolean" ? { forceRefresh: options } : options;
 
-  if (!forceRefresh) {
-    try {
-      const fs = await import("node:fs/promises");
-      const cachedRaw = await fs.readFile(CACHE_FILE, "utf8");
-      const cached = JSON.parse(cachedRaw) as { data: T; timestamp: number };
-      const age = Date.now() - cached.timestamp;
-
-      if (age < CACHE_TTL_MS) {
-        console.log(`[Hessian Memory] Cache hit (age: ${Math.round(age / 1000 / 60)}m)`);
-        return { data: cached.data, cached: true };
-      }
-    } catch {
-      // Cache miss or invalid - continue to fetch fresh
+  // L0: In-memory cache check (fastest, shortest TTL)
+  const L0_KEY = `fetch:${cacheFile}`;
+  if (!forceRefresh && l0Enabled()) {
+    const l0Data = l0Cache.get(L0_KEY);
+    if (l0Data && Date.now() - l0Data.timestamp < L0_TTL_MS) {
+      return { data: l0Data.data as T, cached: true };
     }
   }
 
-  console.log("[Hessian Memory] Fetching fresh data...");
+  // L1: Disk cache check
+  if (!forceRefresh && l1Enabled()) {
+    await ensureCacheDir(path.dirname(cacheFile));
+    try {
+      const fs = await import("node:fs/promises");
+      const cachedRaw = await fs.readFile(cacheFile, "utf8");
+      const cached = JSON.parse(cachedRaw);
+      const age = Date.now() - cached.timestamp;
+      if (age < cacheTtlMs && isValid(cached.data)) {
+        // Prime L0 with L1 data for faster subsequent access
+        if (l0Enabled()) {
+          l0Cache.set(L0_KEY, { data: cached.data, timestamp: Date.now() });
+        }
+        return { data: cached.data as T, cached: true };
+      }
+      if (age < cacheTtlMs) {
+        onInvalidCache("[Hessian] Ignoring a structurally invalid cached model list");
+      }
+    } catch {
+      // Cache miss or invalid
+    }
+  }
 
+  // Fetch fresh data
   const data = await fetcher();
 
-  try {
-    const fs = await import("node:fs/promises");
-    const cacheEntry = { data, timestamp: Date.now() };
-    const tempPath = `${CACHE_FILE}.tmp${Date.now()}`;
-    await fs.writeFile(tempPath, JSON.stringify(cacheEntry, null, 2));
-    await fs.rename(tempPath, CACHE_FILE);
-    console.log("[Hessian Memory] Cache updated");
-  } catch (err) {
-    console.error(`[Hessian Memory] Failed to write cache: ${err}`);
+  // Store in caches
+  // L0 cache
+  if (l0Enabled()) {
+    l0Cache.set(L0_KEY, { data, timestamp: Date.now() });
+  }
+  // L1 cache
+  if (l1Enabled()) {
+    try {
+      await ensureCacheDir(path.dirname(cacheFile));
+      const fs = await import("node:fs/promises");
+      const cacheEntry = { data, timestamp: Date.now() };
+      const tmp = cacheFile + ".tmp";
+      await fs.writeFile(tmp, JSON.stringify(cacheEntry, null, 2));
+      await fs.rename(tmp, cacheFile);
+    } catch (err) {
+      console.error(`[Hessian Memory] Failed to write L1 cache: ${err}`);
+    }
   }
 
   return { data, cached: false };
 }
 
-/**
- * Clear cache
- */
+/** Clear all cache (both L0 and L1) */
 export async function clearCache(): Promise<void> {
+  // Clear L0
+  l0Cache.clear();
+
+  // Clear L1
   try {
     const fs = await import("node:fs/promises");
     await fs.unlink(CACHE_FILE).catch(() => {});
     await fs.unlink(MODELS_CACHE_FILE).catch(() => {});
     console.log("[Hessian Memory] Cache cleared");
   } catch (err) {
-    console.error(`[Hessian Memory] Failed to clear cache: ${err}`);
+    console.error(`[Hessian Memory] Failed to clear L1 cache: ${err}`);
   }
 }
 
-/**
- * Log model usage per project
- */
+/** Log model usage per project */
 export async function logUsage(modelId: string, taskType?: string, latencyMs?: number): Promise<void> {
   await ensureCacheDir();
+
   try {
     const fs = await import("node:fs/promises");
     const entry = {
       timestamp: new Date().toISOString(),
       projectRoot: process.cwd(),
       modelId,
-      taskType: taskType || "general",
+      taskType: inferTaskType(taskType),
       latencyMs,
     };
     await fs.appendFile(USAGE_FILE, JSON.stringify(entry) + "\n");
-  } catch (err: unknown) {
-    console.error(`[Hessian Memory] Failed to log usage: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (err) {
+    console.error(`[Hessian Memory] Failed to log usage: ${err}`);
   }
 }
 
-/**
- * Update metrics for API operations
- */
+/** Update metrics for a model */
 export async function updateMetrics(
   identifier: string,
   success: boolean,
   latencyMs?: number,
 ): Promise<void> {
   await ensureCacheDir();
+
   try {
     const fs = await import("node:fs/promises");
     const metricsRaw = await fs.readFile(METRICS_FILE, "utf8").catch(() => "{}");
-    const metrics: Record<string, any> = JSON.parse(metricsRaw);
+    const metrics = JSON.parse(metricsRaw);
 
     if (!metrics[identifier]) {
       metrics[identifier] = { count: 0, success: 0, errors: 0, totalLatency: 0, lastUsed: null };
@@ -133,14 +186,12 @@ export async function updateMetrics(
     const tmp = METRICS_FILE + ".tmp";
     await fs.writeFile(tmp, JSON.stringify(metrics, null, 2));
     await fs.rename(tmp, METRICS_FILE);
-  } catch (err: unknown) {
-    console.error(`[Hessian Memory] Failed to update metrics: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (err) {
+    console.error(`[Hessian Memory] Failed to update metrics: ${err}`);
   }
 }
 
-/**
- * Get user preferences
- */
+/** Get user preferences */
 export async function getPreferences(): Promise<Record<string, any>> {
   try {
     const fs = await import("node:fs/promises");
@@ -151,9 +202,7 @@ export async function getPreferences(): Promise<Record<string, any>> {
   }
 }
 
-/**
- * Set user preferences
- */
+/** Set user preferences */
 export async function setPreferences(prefs: Record<string, unknown>): Promise<void> {
   try {
     const fs = await import("node:fs/promises");
@@ -170,9 +219,7 @@ export async function setPreferences(prefs: Record<string, unknown>): Promise<vo
   }
 }
 
-/**
- * Get project context
- */
+/** Get project context */
 export async function getContext(): Promise<Record<string, unknown>> {
   try {
     const fs = await import("node:fs/promises");
@@ -183,9 +230,7 @@ export async function getContext(): Promise<Record<string, unknown>> {
   }
 }
 
-/**
- * Update project context
- */
+/** Update project context */
 export async function updateContext(updates: Record<string, unknown>): Promise<void> {
   try {
     const fs = await import("node:fs/promises");
@@ -201,34 +246,149 @@ export async function updateContext(updates: Record<string, unknown>): Promise<v
   }
 }
 
-/**
- * Get usage statistics
- */
+/** Infer task type from file structure */
+function inferTaskType(explicit?: string): string {
+  if (explicit) return explicit;
+
+  const cwd = process.cwd();
+
+  // Check for test files
+  const files = ["test", "spec", ".test", ".spec"];
+  if (files.some((f) => cwd.includes(f))) return "testing";
+
+  // Check for docs
+  const docFiles = ["README.md", "CHANGELOG.md", "docs/"];
+  if (docFiles.some((f) => cwd.includes(f))) return "documentation";
+
+  // Check for code
+  const codeExtensions = [".ts", ".js", ".py", ".java", ".cpp", ".go", ".rs", ".php", ".rb"];
+  if (codeExtensions.some((ext) => cwd.includes(ext))) return "coding";
+
+  // Check for images
+  const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"];
+  if (imageExtensions.some((ext) => cwd.includes(ext))) return "vision";
+
+  return "general";
+}
+
+/** Get recommended model based on usage and context */
+export async function getRecommendedModel(availableModels: string[]): Promise<string> {
+  const prefs = await getPreferences();
+  const context = await getContext();
+
+  if (prefs.favoriteModel) {
+    return prefs.favoriteModel;
+  }
+
+  if (context.preferredModel) {
+    return context.preferredModel as string;
+  }
+
+  // Fallback: pick glm-4.7 if available, else first model
+  if (availableModels.includes("tud/mistral-medium-3.5-128b")) {
+    return "tud/mistral-medium-3.5-128b";
+  }
+
+  return availableModels[0] || "unknown";
+}
+
+interface ModelDiff {
+  added: string[];
+  removed: string[];
+}
+
+/** Check for new or removed models compared to the last cached list.
+ * Does NOT auto-refresh the cache — only detects changes for notification */
+export async function checkForNewModels(apiKey?: string): Promise<ModelDiff> {
+  await ensureCacheDir();
+
+  const fs = await import("node:fs/promises");
+
+  // Read cached model list
+  let cachedIds: string[] = [];
+  try {
+    const raw = await fs.readFile(MODELS_CACHE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.ids)) cachedIds = parsed.ids;
+  } catch {
+    // No cache yet — first run
+  }
+
+  const key = apiKey || process.env.HESSIAN_API_KEY || "";
+  if (!key) return { added: [], removed: [] };
+
+  const url = (process.env.HESSIAN_API_URL || "https://api.hessian.ai/v1").replace(/\/$/, "") + "/models";
+
+  let freshIds: string[] = [];
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return { added: [], removed: [] };
+    const body = (await res.json()) as { data?: Array<{ id: string }> };
+    freshIds = (body.data || []).map((m) => m.id).sort();
+
+    // Persist the fresh list as the new cache snapshot
+    const tmp = MODELS_CACHE_FILE + ".tmp";
+    await fs.writeFile(tmp, JSON.stringify({ ids: freshIds, timestamp: Date.now() }, null, 2));
+    await fs.rename(tmp, MODELS_CACHE_FILE);
+  } catch {
+    return { added: [], removed: [] };
+  }
+
+  // No prior cache = first check, return empty diff
+  if (cachedIds.length === 0) return { added: [], removed: [] };
+
+  const cachedSet = new Set(cachedIds);
+  const freshSet = new Set(freshIds);
+
+  const added = freshIds.filter((id) => !cachedSet.has(id));
+  const removed = cachedIds.filter((id) => !freshSet.has(id));
+
+  if (added.length > 0 || removed.length > 0) {
+    console.log(`[Hessian Memory] Model changes detected: +${added.length} -${removed.length}`);
+    for (const id of added) console.log(`  [+] ${id}`);
+    for (const id of removed) console.log(`  [-] ${id}`);
+  }
+
+  return { added, removed };
+}
+
+/** Get usage statistics */
 export async function getUsageStats(): Promise<Record<string, any>> {
   try {
     const fs = await import("node:fs/promises");
     const raw = await fs.readFile(USAGE_FILE, "utf8").catch(() => "");
-    const lines = raw.trim().split("\n").filter(Boolean);
-    const stats: Record<string, any> = { total: lines.length, byModel: {}, byTask: {} };
+    const lines = raw.trim().split("\n");
+
+    const stats: Record<string, any> = {
+      total: lines.length,
+      byModel: {},
+      byTask: {},
+    };
 
     for (const line of lines) {
+      if (!line.trim()) continue;
       try {
         const entry = JSON.parse(line);
         const model = entry.modelId || "unknown";
         const task = entry.taskType || "unknown";
+
         stats.byModel[model] = (stats.byModel[model] || 0) + 1;
         stats.byTask[task] = (stats.byTask[task] || 0) + 1;
-      } catch { /* skip invalid lines */ }
+      } catch {
+        // Skip invalid lines
+      }
     }
+
     return stats;
   } catch {
     return { total: 0, byModel: {}, byTask: {} };
   }
 }
 
-/**
- * Get metrics summary
- */
+/** Get metrics summary */
 export async function getMetricsSummary(): Promise<Record<string, any>> {
   try {
     const fs = await import("node:fs/promises");
@@ -248,7 +408,7 @@ export async function getMetricsSummary(): Promise<Record<string, any>> {
 
     const rates = Object.values(summary.byEndpoint).map((e: any) => e.successRate || 0);
     summary.successRate = rates.length > 0
-      ? rates.reduce((sum, r) => sum + r, 0) / rates.length
+      ? rates.reduce((sum: number, r: number) => sum + r, 0) / rates.length
       : 0;
 
     return summary;
@@ -257,54 +417,29 @@ export async function getMetricsSummary(): Promise<Record<string, any>> {
   }
 }
 
-/**
- * Check for new or removed models compared to last cached list
- */
-export async function checkForNewModels(apiKey?: string): Promise<{ added: string[]; removed: string[] }> {
-  await ensureCacheDir();
-  const fs = await import("node:fs/promises");
-
-  let cachedIds: string[] = [];
-  try {
-    const raw = await fs.readFile(MODELS_CACHE_FILE, "utf8");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.ids)) cachedIds = parsed.ids;
-  } catch { /* no cache yet */ }
-
-  const key = apiKey || process.env.HESSIAN_API_KEY || "";
-  if (!key) return { added: [], removed: [] };
-
-  const url = "https://api.hessian.ai/v1/models";
-
-  let freshIds: string[] = [];
-  try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${key}` },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return { added: [], removed: [] };
-    const body = await res.json() as { data?: Array<{ id: string }> };
-    freshIds = (body.data || []).map((m) => m.id).sort();
-
-    const tmp = MODELS_CACHE_FILE + ".tmp";
-    await fs.writeFile(tmp, JSON.stringify({ ids: freshIds, timestamp: Date.now() }, null, 2));
-    await fs.rename(tmp, MODELS_CACHE_FILE);
-  } catch {
-    return { added: [], removed: [] };
+/** Get cache statistics */
+export function getCacheStats() {
+  // Clean up expired L0 entries
+  const now = Date.now();
+  for (const [key, entry] of l0Cache) {
+    if (now - entry.timestamp >= L0_TTL_MS) {
+      l0Cache.delete(key);
+    }
   }
 
-  if (cachedIds.length === 0) return { added: [], removed: [] };
-
-  const freshSet = new Set(freshIds);
-  const cachedSet = new Set(cachedIds);
-  const added = freshIds.filter((id) => !cachedSet.has(id));
-  const removed = cachedIds.filter((id) => !freshSet.has(id));
-
-  if (added.length > 0 || removed.length > 0) {
-    console.log(`[Hessian Memory] Model changes detected: +${added.length} -${removed.length}`);
-    for (const id of added) console.log(`  [+] ${id}`);
-    for (const id of removed) console.log(`  [-] ${id}`);
-  }
-
-  return { added, removed };
+  return {
+    l0: {
+      enabled: l0Enabled(),
+      size: l0Cache.size,
+      ttlMs: L0_TTL_MS,
+    },
+    l1: {
+      enabled: l1Enabled(),
+      cacheFile: CACHE_FILE,
+      ttlMs: CACHE_TTL_MS,
+    },
+  };
 }
+
+// Export cache configuration constants
+export { L0_TTL_MS, CACHE_TTL_MS as L1_TTL_MS };
